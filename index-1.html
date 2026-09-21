@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLA Rule Classifier</title>
+<meta name="description" content="A programmable logic array that sorts emails into phishing, spam or safe, with every decision traced to a product term.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='3' y='3' width='18' height='18' rx='4' fill='%2315203b'/%3E%3Cpath d='M8 8h8M8 12h8M8 16h8M8 8v8M12 8v8M16 8v8' stroke='white' stroke-width='1.3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#15203b; --ink-2:#26324f; --blue:#2547d0; --blue-soft:#dfe6fb;
+  --bg:#f1f3f8; --bg2:#e5e9f0; --card:#fff; --line:#d7dce6; --muted:#5b6578;
+  --phish:#a8261e; --phish-bg:#fbe0de; --spam:#93540a; --spam-bg:#fbeac8; --safe:#0e7a49; --safe-bg:#d7f1e2;
+  --review:#3f4a5f; --review-bg:#e3e6ec; --warn:#a4241c;
+  --head:'Archivo','Helvetica Neue',Arial,sans-serif;
+  --body:'Source Sans 3','Segoe UI',Arial,sans-serif;
+  --mono:'IBM Plex Mono',Consolas,'Courier New',monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;font-family:var(--body);font-size:17px;line-height:1.5;color:var(--ink);background:var(--bg);-webkit-text-size-adjust:100%}
+h1,h2,h3,h4{font-family:var(--head);margin:0;line-height:1.12;letter-spacing:-.01em}
+p{margin:0}
+a{color:var(--blue)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid #7d97f5;outline-offset:2px}
+.wrap{max-width:972px;margin:0 auto;padding:0 20px}
+section{padding:72px 0}
+.alt{background:var(--bg2)}
+.lede{color:var(--ink-2);max-width:640px;margin-top:12px}
+.mono{font-family:var(--mono)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+.card h3{font-size:1.05rem;margin-bottom:10px}
+
+/* header */
+header.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;height:52px;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--head);font-weight:700;font-size:1.05rem;color:var(--ink);text-decoration:none;white-space:nowrap}
+nav.main{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.main::-webkit-scrollbar{display:none}
+nav.main a{position:relative;padding:14px 9px;color:var(--ink);text-decoration:none;font-weight:600;font-size:.95rem;white-space:nowrap}
+nav.main a.active::after{content:"";position:absolute;left:8px;right:8px;bottom:0;height:3px;background:var(--blue);border-radius:2px}
+
+/* hero */
+.hero{padding:56px 0 64px}
+.hero-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:56px;align-items:start}
+.kicker{font-family:var(--mono);font-size:.86rem;color:var(--blue);margin-bottom:14px}
+.hero h1{font-size:clamp(2.2rem,5vw,3.35rem);font-weight:800;letter-spacing:-.025em;line-height:1.05}
+.hero p.sub{margin-top:20px;font-size:1.08rem;color:var(--ink-2);max-width:500px}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+.btn{display:inline-block;border:1.5px solid var(--ink);background:var(--ink);color:#fff;padding:10px 18px;border-radius:7px;font-weight:700;text-decoration:none;font-size:.95rem}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.small{padding:7px 14px;font-size:.9rem;background:#fff;color:var(--ink);border-color:var(--ink);font-weight:600}
+.stats{display:flex;flex-wrap:wrap;gap:8px 24px;margin-top:26px;color:var(--muted)}
+.stats b{font-family:var(--head);font-size:1.6rem;color:var(--ink);margin-right:6px}
+.mail{background:#fff;border:2px solid var(--ink);border-radius:12px;padding:18px 20px 20px;box-shadow:8px 8px 0 var(--ink);}
+.mail .row{display:flex;justify-content:space-between;align-items:baseline;color:var(--ink-2);font-weight:600;font-size:.92rem}
+.mail h3{font-size:1.15rem;margin:8px 0 14px;font-weight:700}
+.mail .small{font-size:.9rem;color:var(--muted);margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--ink);background:#fff;color:var(--ink);padding:3px 12px 3px 4px;border-radius:99px;font-weight:600;font-size:.92rem}
+.chip i{font-style:normal;font-family:var(--head);font-weight:800;width:22px;text-align:center}
+.chip[aria-pressed=true]{background:var(--ink);color:#fff}
+.terms{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.term{border:1px solid var(--line);background:#f6f7fa;border-radius:6px;padding:5px 8px;font-size:.85rem;min-height:46px}
+.term b{display:block;font-family:var(--head);font-size:.86rem}
+.term span{font-family:var(--mono);font-size:.74rem;color:var(--muted);word-break:break-all}
+.term.on{border-color:var(--blue);background:var(--blue-soft)}
+.term.on span{color:var(--ink)}
+.verdict{display:flex;gap:12px;align-items:flex-start;border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+.verdict p{font-size:.95rem;color:var(--ink-2)}
+.tag{display:inline-block;padding:2px 10px;border-radius:5px;font-weight:700;font-size:.85rem;white-space:nowrap}
+.t-Phishing{background:var(--phish-bg);color:var(--phish)}
+.t-Spam{background:var(--spam-bg);color:var(--spam)}
+.t-Safe{background:var(--safe-bg);color:var(--safe)}
+.t-Review{background:var(--review-bg);color:var(--review)}
+
+/* problem */
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.cols3 .card p{color:var(--ink-2);font-size:.98rem}
+.bignum{font-family:var(--head);font-weight:800;font-size:2rem;display:block;margin-bottom:6px}
+
+/* solution */
+h2.sec{font-size:clamp(1.7rem,3.4vw,2.2rem);font-weight:700}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px}
+.bits{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.bits li{display:flex;gap:12px;align-items:flex-start}
+.bits .k{flex:0 0 26px;height:26px;border-radius:5px;background:var(--ink);color:#fff;font-family:var(--head);font-weight:700;font-size:.85rem;display:grid;place-items:center;margin-top:1px}
+.bits b{display:block;font-family:var(--head);font-size:1rem;font-weight:600}
+.bits span{display:block;font-size:.85rem;color:var(--muted)}
+.eq{display:grid;grid-template-columns:78px 1fr;gap:6px 10px;align-items:center}
+.eq .code{background:#f1f2f5;border-radius:4px;padding:2px 8px}
+.eq .code div{font-family:var(--mono);font-size:.98rem;padding-top:2px;word-break:break-word}
+.eq .code small{display:block;font-family:var(--mono);font-size:.78rem;color:var(--muted);padding-bottom:2px;word-break:break-word}
+.note{color:var(--muted);font-size:.9rem;margin-top:14px}
+.circuit{margin-top:20px}
+.circuit .head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline;margin-bottom:12px}
+.circuit .head p{font-size:.88rem;color:var(--muted)}
+.svgwrap{overflow-x:auto;margin-top:10px}
+.svgwrap svg{min-width:680px;width:100%;height:auto;display:block}
+svg text{font-family:var(--mono);fill:#4b5568;font-size:12px}
+svg .plane{font-family:var(--head);font-weight:600;font-size:13px;fill:#5b6578}
+svg .big{font-family:var(--head);font-weight:800;font-size:17px;fill:var(--ink)}
+svg .plab{font-family:var(--head);font-weight:700;font-size:14px;fill:var(--ink)}
+svg .plab.on{fill:var(--safe)}
+svg .vl{stroke:#c3c9d6;stroke-width:2}
+svg .vl.on{stroke:var(--blue);stroke-width:3}
+svg .hl{stroke:#b8bfcd;stroke-width:2}
+svg .hl.on{stroke:#19a866;stroke-width:4}
+svg .dot{fill:var(--ink)}
+svg .dot.on{fill:#19a866}
+svg .ol{stroke:#c3c9d6;stroke-width:2}
+svg .ol.on-0{stroke:#c0392b;stroke-width:3}
+svg .ol.on-1{stroke:#c98314;stroke-width:3}
+svg .ol.on-2{stroke:#19a866;stroke-width:3}
+svg .oc{fill:#d0d5df}
+svg .oc.on-0{fill:#c0392b}svg .oc.on-1{fill:#c98314}svg .oc.on-2{fill:#19a866}
+svg .badge{fill:#e6e9ef}
+svg .badge.one{fill:var(--blue)}
+svg .btxt{fill:#5b6578;font-weight:600;font-size:12px}
+svg .btxt.one{fill:#fff}
+
+/* features */
+.fgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-top:26px}
+.fcard{grid-column:span 2;background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:8px}
+.fcard.w3{grid-column:span 3}
+.fcard.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
+.fcard h3{font-size:1.08rem}
+.fcard p{color:var(--muted);font-size:.95rem;flex:1}
+.fcard.dark p{color:#d3daee}
+.fcard a{font-weight:700;font-size:.92rem;margin-top:8px}
+.fcard.dark a{color:#a9bcff}
+
+/* how */
+.steps{list-style:none;margin:32px 0 0;padding:0;position:relative;max-width:700px}
+.steps::before{content:"";position:absolute;left:17px;top:20px;bottom:24px;width:2px;background:#c9cfdb}
+.steps li{position:relative;padding:0 0 26px 62px}
+.steps .n{position:absolute;left:0;top:0;width:36px;height:36px;border:2px solid var(--ink);border-radius:50%;background:var(--bg2);display:grid;place-items:center;font-family:var(--head);font-weight:700}
+.steps h3{font-size:1.05rem;font-weight:600;margin-bottom:2px}
+.steps p{color:var(--ink-2);font-size:.98rem}
+code.i{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 6px;font-size:.9rem}
+
+/* demo */
+.fault{margin-top:24px;border:1.5px dashed #7a8398;border-radius:10px;padding:16px 18px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center;background:#f6f7fb}
+.fault h3{font-size:1rem}
+.fault .msg{color:var(--warn);font-size:.9rem;margin-top:4px;max-width:520px}
+.fault .msg.ok{color:var(--muted)}
+.fault .sel{display:flex;gap:12px;flex-wrap:wrap}
+label.f{display:block;font-size:.88rem;font-weight:600;color:var(--ink-2)}
+select,input[type=text],input[type=email],textarea{width:100%;border:1px solid #c5ccda;background:#fff;border-radius:7px;padding:9px 12px;margin-top:4px}
+.fault select{min-width:170px}
+.tabs{display:flex;gap:4px;margin-top:22px;border-bottom:2px solid var(--ink);overflow-x:auto}
+.tabs button{border:0;background:transparent;padding:11px 16px;font-weight:600;color:var(--ink-2);border-radius:8px 8px 0 0;white-space:nowrap}
+.tabs button[aria-selected=true]{background:var(--ink);color:#fff}
+.panel{margin-top:16px}
+.panel[hidden]{display:none}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.split h3{font-size:1.05rem;margin-bottom:12px}
+.split h4{font-size:1rem;margin:18px 0 10px}
+.clue{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1px solid var(--line);background:#f6f7fa;border-radius:8px;padding:8px 12px;margin-bottom:8px}
+.clue .k{width:26px;height:26px;border-radius:5px;background:#e3e7ef;font-family:var(--head);font-weight:700;font-size:.85rem;display:grid;place-items:center}
+.clue .t{flex:1}
+.clue b{display:block;font-family:var(--head);font-weight:600;font-size:.98rem;line-height:1.2}
+.clue span.d{font-size:.8rem;color:var(--muted)}
+.clue .v{width:28px;height:28px;border:1px solid #c5ccda;border-radius:5px;background:#fff;font-family:var(--mono);font-weight:600;display:grid;place-items:center}
+.clue[aria-pressed=true]{border-color:var(--blue);background:var(--blue-soft)}
+.clue[aria-pressed=true] .k{background:var(--ink);color:#fff}
+.clue[aria-pressed=true] .v{background:var(--blue);color:#fff;border-color:var(--blue)}
+.result-title{color:var(--muted);font-family:var(--head);font-weight:600;margin-bottom:10px}
+.badge-big{display:inline-block;font-family:var(--head);font-weight:700;font-size:1.4rem;padding:6px 18px;border-radius:8px;margin-bottom:10px}
+.agree{padding:8px 12px;border-radius:6px;font-size:.92rem;margin-top:12px}
+.agree.yes{background:var(--safe-bg);color:var(--safe)}
+.agree.no{background:var(--phish-bg);color:var(--phish)}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:8px 10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:.95rem}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0}
+.pill{display:inline-block;font-family:var(--mono);font-size:.8rem;border:1px solid var(--line);background:#f6f7fa;border-radius:5px;padding:1px 8px;margin-right:6px}
+.pill.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:600}
+.inline-note{font-size:.88rem;color:var(--muted);margin-top:10px}
+
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+.plane-table th,.plane-table td{border:1px solid var(--line);padding:5px 4px;text-align:center;font-size:.9rem}
+.plane-table th{background:#f3f4f8;font-family:var(--head);font-weight:600}
+.plane-table th.grp{background:var(--ink);color:#fff}
+.plane-table th.or0{color:var(--phish)}.plane-table th.or1{color:var(--spam)}.plane-table th.or2{color:var(--safe)}
+.plane-table td.name{text-align:left;white-space:nowrap;font-family:var(--head);font-weight:700;padding-left:10px}
+.plane-table td.name span{font-family:var(--mono);font-weight:400;font-size:.76rem;background:#f1f2f5;padding:1px 5px;border-radius:4px;margin-left:6px;color:var(--ink-2)}
+.cell{width:30px;height:28px;border-radius:6px;border:1px solid #c5ccda;background:#fff;font-family:var(--mono);font-weight:600;font-size:.85rem;padding:0}
+.cell.l1{background:#dde6ff;border-color:var(--blue);color:var(--blue)}
+.cell.l0{background:#fdebc8;border-color:#d59a2f;color:#8a5500}
+.cell.ldc{color:#8a92a4}
+.cell.o{border-radius:6px;color:#8a92a4}
+.cell.o.on-0{background:#fbdcda;border-color:#d1554b;color:var(--phish)}
+.cell.o.on-1{background:#fbe6bd;border-color:#d59a2f;color:var(--spam)}
+.cell.o.on-2{background:#d3f0e0;border-color:#3fae7a;color:var(--safe)}
+.rm{background:none;border:0;color:var(--warn);font-weight:600;text-decoration:underline;font-size:.88rem}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.big-stats{display:flex;gap:24px;flex-wrap:wrap;margin-top:6px}
+.big-stats b{display:block;font-family:var(--head);font-size:1.7rem}
+.big-stats span{font-size:.82rem;color:var(--muted)}
+.data-table th,.data-table td{padding:8px 10px;text-align:left;font-size:.92rem;border-bottom:1px solid var(--line)}
+.data-table th{font-family:var(--head);font-weight:700;background:#f6f7fa;position:sticky;top:0;z-index:1}
+.data-table tr.bad td{background:#fdf1f0}
+.data-table tr.rev td{background:#f4f5f8}
+.scrollbox{max-height:400px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.pass{color:var(--safe);font-weight:700}.fail{color:var(--warn);font-weight:700}
+.summary-line{font-family:var(--head);font-weight:700;font-size:1.05rem}
+
+/* results */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:24px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px}
+.kpi:first-child{border:2px solid var(--ink)}
+.kpi small{display:block;color:var(--ink-2);font-weight:600}
+.kpi b{display:block;font-family:var(--head);font-size:2.3rem;line-height:1.15;margin:4px 0 2px}
+.kpi span{font-size:.82rem;color:var(--muted)}
+.kpi span.neg{color:var(--warn)}.kpi span.pos{color:var(--safe)}
+.seg{display:inline-flex;border:1.5px solid var(--ink);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:#fff;padding:7px 14px;font-weight:600;font-size:.9rem}
+.seg button+button{border-left:1px solid var(--ink)}
+.seg button[aria-pressed=true]{background:var(--ink);color:#fff}
+.conf td{text-align:center;font-family:var(--mono)}
+.conf td:first-child{text-align:left;font-family:var(--head)}
+.bar{height:12px;background:#dfe3ec;border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%}
+.barrow{display:grid;grid-template-columns:150px 1fr 190px;gap:12px;align-items:center;margin-top:10px;font-size:.9rem}
+.barrow .lab b{font-family:var(--head)}
+.barrow .lab span{font-family:var(--mono);font-size:.75rem;color:var(--muted);margin-left:6px}
+.never{color:var(--warn);font-weight:600}
+
+/* team */
+.team{display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.person{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;max-width:360px;margin-top:18px}
+.avatar{width:46px;height:46px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--head);font-weight:700}
+.person b{display:block;font-family:var(--head)}
+.person span{font-size:.92rem;color:var(--muted)}
+.team p.meta{color:var(--muted);font-size:.93rem;margin-top:14px;max-width:460px}
+form.contact label{display:block;font-weight:600;font-size:.9rem;margin-top:14px}
+form.contact textarea{min-height:100px;resize:vertical}
+.err{color:var(--warn);font-size:.85rem;margin-top:4px}
+.invalid{border-color:var(--warn)!important}
+.status{font-weight:700;margin-top:12px}
+.status.bad{color:var(--warn)}.status.good{color:var(--safe)}
+details.saved{margin-top:20px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+details.saved summary{font-family:var(--head);font-weight:600;cursor:pointer}
+details.saved ul{margin:10px 0;padding:0;list-style:none;font-size:.9rem}
+details.saved li{padding:8px 0;border-top:1px solid var(--line)}
+footer{background:var(--ink);color:#c9d1e6;padding:28px 0;font-size:.9rem}
+
+@media (max-width:860px){
+  .hero-grid,.two,.split,.team{grid-template-columns:1fr;gap:28px}
+  .cols3{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr 1fr}.fcard,.fcard.w3{grid-column:span 2}
+  .kpis{grid-template-columns:1fr 1fr}
+  .barrow{grid-template-columns:1fr;gap:4px}
+  section{padding:52px 0}
+  .mail{box-shadow:6px 6px 0 var(--ink)}
+}
+@media (max-width:520px){
+  .brand span{display:none}
+  .kv{grid-template-columns:1fr}
+  .fault{padding:14px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="PLA Rule Classifier home">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#15203b" stroke-width="1.6" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" stroke-width="2.4" stroke-linecap="round"/></svg>
+      <span>PLA Rule Classifier</span>
+    </a>
+    <nav class="main" aria-label="Sections">
+      <a href="#problem">Problem</a><a href="#solution">Solution</a><a href="#features">Features</a><a href="#how">How it works</a><a href="#demo">Demo</a><a href="#results">Results</a><a href="#team">Team</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="kicker">EC2201, Unit IV: Memory and Programmable Logic Devices</p>
+      <h1>Which emails are dangerous? Let a programmable logic array decide.</h1>
+      <p class="sub">We wired a small PLA that reads six yes/no clues about an email and sorts it as phishing, spam or safe. Every decision can be traced to a single product term, so you can see exactly why.</p>
+      <div class="cta">
+        <a class="btn" href="#demo">Open the live demo</a>
+        <a class="btn ghost" href="#how">See how it works</a>
+      </div>
+      <div class="stats" id="heroStats"></div>
+    </div>
+    <div class="mail" aria-live="polite">
+      <div class="row"><span>Incoming email</span><a href="#" id="heroNext">Try another sample</a></div>
+      <h3 id="heroTitle"></h3>
+      <p class="small">Flip the clues the filter can see:</p>
+      <div class="chips" id="heroChips"></div>
+      <p class="small" style="margin-top:16px">Product terms in the AND plane:</p>
+      <div class="terms" id="heroTerms"></div>
+      <div class="verdict"><span class="tag" id="heroTag"></span><p id="heroWhy"></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem" class="alt">
+  <div class="wrap">
+    <h2 class="sec">The problem: inboxes are full and filters are black boxes</h2>
+    <p class="lede">Most spam filters are trained models. They work, but when one blocks a real email or lets a scam through, nobody can point to the reason.</p>
+    <div class="cols3">
+      <div class="card"><b class="bignum">Phishing</b><p>Fake urgent mails that ask for a password, an OTP or card details. One click can cost real money.</p></div>
+      <div class="card"><b class="bignum">Spam</b><p>Promotional mail from unknown senders. Not dangerous, but it buries the mail you need to read.</p></div>
+      <div class="card"><b class="bignum">No reason given</b><p>A learned model cannot say which rule fired. Hardware-style logic can: each output comes from named product terms.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SOLUTION -->
+<section id="solution">
+  <div class="wrap">
+    <h2 class="sec">Our solution: rules burnt into two planes</h2>
+    <p class="lede">Each email becomes six bits. The AND plane checks patterns (product terms). The OR plane joins terms into three outputs. A priority encoder picks one label, and anything that matches no term goes to a person.</p>
+    <div class="two">
+      <div class="card">
+        <h3>The six input bits</h3>
+        <ul class="bits" id="bitList"></ul>
+      </div>
+      <div class="card">
+        <h3>Output equations (current rules)</h3>
+        <div class="eq" id="eqSolution"></div>
+        <p class="note">Priority when several outputs are high: Phishing, then Spam, then Safe. If none is high, the email is marked <em>Needs review</em>.</p>
+      </div>
+    </div>
+    <div class="card circuit">
+      <div class="head"><h3 style="margin:0">Circuit view</h3><p>Dots are programmed connections. Toggle the clues to light up the matching lines.</p></div>
+      <div class="chips" id="circChips"></div>
+      <div class="svgwrap" id="circuit"></div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" class="alt">
+  <div class="wrap">
+    <h2 class="sec">What the project can do</h2>
+    <div class="fgrid">
+      <div class="fcard dark w3"><h3>Edit the rules like a real PLA</h3><p>Click any cell of the AND plane to cycle between 1, 0 and don't-care. Click the OR plane to connect a term to an output. Accuracy and coverage update instantly.</p><a href="#demo" data-tab="edit">Open the rule editor</a></div>
+      <div class="fcard"><h3>Full truth table</h3><p>All 64 input combinations, with the terms that fire and the final label.</p><a href="#demo" data-tab="truth">View truth table</a></div>
+      <div class="fcard"><h3>Fault injection</h3><p>Force an input or a product line to stuck-at-0 or stuck-at-1 and watch accuracy drop.</p><a href="#demo" data-tab="classify" data-fault="1">Try a fault</a></div>
+      <div class="fcard"><h3>17 built-in tests</h3><p>Ten normal cases and seven edge or fault cases, each with an expected label.</p><a href="#demo" data-tab="tests">Run the tests</a></div>
+      <div class="fcard"><h3>Bring your own data</h3><p>Upload a CSV, classify it, and download the predictions.</p><a href="#demo" data-tab="data">Upload a CSV</a></div>
+      <div class="fcard dark w3"><h3>Accuracy and rule coverage</h3><p>Accuracy tells you how often the label was right. Coverage tells you how often any rule fired at all. The dashboard also shows a confusion matrix and how busy each product term is.</p><a href="#results">Go to results</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="wrap">
+    <h2 class="sec">How it works</h2>
+    <ol class="steps">
+      <li><span class="n">1</span><h3>Prepare binary features</h3><p>Every email is reduced to six yes/no clues (link, urgent wording, unknown sender, attachment, credential request, promotional wording). The dataset is synthetic and generated with a fixed seed (2201), so anyone can reproduce it.</p></li>
+      <li><span class="n">2</span><h3>Define the rules</h3><p>Each rule is a product term such as <code class="i">A·B·E</code>. A literal can be true, complemented, or a don't-care, which is how one row covers many input combinations.</p></li>
+      <li><span class="n">3</span><h3>Map product terms to outputs</h3><p>The OR plane connects terms to Phishing, Spam or Safe. One term can feed one output; several terms can feed the same output.</p></li>
+      <li><span class="n">4</span><h3>Classify the records</h3><p>The priority encoder turns the three output lines into one label. When no term fires, the record is flagged for review instead of being guessed.</p></li>
+      <li><span class="n">5</span><h3>Evaluate accuracy and coverage</h3><p>The results dashboard compares predictions with the true labels and shows a confusion matrix, per-class quality and how often each term fires.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section id="demo" class="alt">
+  <div class="wrap">
+    <h2 class="sec">Live demo</h2>
+    <p class="lede">Everything below runs in your browser. Change an input, edit a rule or break a wire, and the whole site updates.</p>
+
+    <div class="fault" id="faultBox">
+      <div><h3>Fault injection</h3><p class="msg" id="faultMsg"></p></div>
+      <div class="sel">
+        <label class="f">Fault type<select id="faultType"></select></label>
+        <label class="f">Location<select id="faultLoc"></select></label>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="classify" aria-selected="true">Classify</button>
+      <button role="tab" data-tab="edit" aria-selected="false">Edit rules</button>
+      <button role="tab" data-tab="truth" aria-selected="false">Truth table</button>
+      <button role="tab" data-tab="tests" aria-selected="false">Tests</button>
+      <button role="tab" data-tab="data" aria-selected="false">Your data</button>
+    </div>
+
+    <!-- classify -->
+    <div class="panel" id="p-classify">
+      <div class="split">
+        <div class="card">
+          <h3>1. Pick an email</h3>
+          <label class="f" for="sampleSel">Sample emails</label>
+          <select id="sampleSel"></select>
+          <div class="btnrow" style="margin-top:14px"><button class="btn small" id="randRec">Random record from dataset</button></div>
+          <h4>2. Or set the clues yourself</h4>
+          <div id="clueList"></div>
+        </div>
+        <div class="card" aria-live="polite">
+          <h3>3. Read the result</h3>
+          <div id="resultBox"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- edit -->
+    <div class="panel" id="p-edit" hidden>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+          <h3 style="margin:0">Program the planes</h3>
+          <p class="note" style="margin:0;max-width:520px;text-align:right">Click a literal to cycle 1, 0, and don't-care (dash). Click an OR cell to connect or disconnect a term from an output.</p>
+        </div>
+        <div class="tw"><table class="plane-table" id="planeTable"></table></div>
+        <div class="btnrow">
+          <button class="btn small" id="addTerm">Add product term</button>
+          <button class="btn small" id="loadV1">Load rule set v1 (starting rules)</button>
+          <button class="btn small" id="loadV2">Load rule set v2 (tuned)</button>
+        </div>
+      </div>
+      <div class="split" style="margin-top:16px">
+        <div class="card"><h3>Equations</h3><div class="eq" id="eqEdit"></div></div>
+        <div class="card"><h3>Effect on the dataset</h3><div class="big-stats" id="editStats"></div><p class="note">Tip: open the Results section, look at the "Needs review" rows, and add a term that covers those records.</p></div>
+      </div>
+    </div>
+
+    <!-- truth -->
+    <div class="panel" id="p-truth" hidden>
+      <div class="card">
+        <h3>Truth table: all 64 input combinations</h3>
+        <p class="note" style="margin:0 0 12px" id="truthSummary"></p>
+        <div class="scrollbox"><table class="data-table" id="truthTable"></table></div>
+      </div>
+    </div>
+
+    <!-- tests -->
+    <div class="panel" id="p-tests" hidden>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <h3 style="margin:0">17 built-in tests</h3>
+          <button class="btn small" id="runTests">Run the tests</button>
+        </div>
+        <p class="summary-line" id="testSummary"></p>
+        <div class="scrollbox" style="margin-top:10px"><table class="data-table" id="testTable"></table></div>
+        <p class="note">Each fault test sets its own fault for that run only. Expected labels are written for rule set v1, so edited rules can make a test fail.</p>
+      </div>
+    </div>
+
+    <!-- data -->
+    <div class="panel" id="p-data" hidden>
+      <div class="card">
+        <h3>Classify your own CSV</h3>
+        <p style="color:var(--ink-2);margin-bottom:12px">Columns needed: <code class="i">A</code> to <code class="i">F</code> with 0 or 1. Optional: <code class="i">id</code> and <code class="i">label</code> (Phishing, Spam or Safe). With labels, the Results dashboard switches to your file.</p>
+        <div class="btnrow" style="margin-top:0">
+          <label class="btn small" style="cursor:pointer">Choose a CSV<input type="file" id="csvFile" accept=".csv,text/csv" hidden></label>
+          <button class="btn small" id="sampleCsv">Download a sample CSV</button>
+          <button class="btn small" id="resetData">Use built-in dataset</button>
+          <button class="btn small" id="dlPred" hidden>Download predictions</button>
+        </div>
+        <p class="status" id="csvStatus"></p>
+        <div class="scrollbox" id="csvBox" style="margin-top:12px" hidden><table class="data-table" id="csvTable"></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results">
+  <div class="wrap">
+    <h2 class="sec">Results dashboard</h2>
+    <p class="lede" id="resLede"></p>
+    <div class="kpis" id="kpis"></div>
+    <div class="split" style="margin-top:16px">
+      <div class="card"><h3>Confusion matrix</h3><p class="note" style="margin:0 0 10px">Rows are the true class, columns are what the PLA predicted.</p><div class="tw"><table class="data-table conf" id="confTable"></table></div></div>
+      <div class="card"><h3>Per-class quality</h3><p class="note" style="margin:0 0 10px">Precision: of the mails flagged, how many were right. Recall: of the true mails, how many were found.</p><div class="tw"><table class="data-table" id="classTable"></table></div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Rule coverage: how often each product term fires</h3><div id="coverage"></div></div>
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center">
+        <h3 style="margin:0">Record-level results</h3>
+        <div class="seg" id="filterSeg">
+          <button data-f="all" aria-pressed="true">All</button><button data-f="wrong" aria-pressed="false">Wrong</button><button data-f="review" aria-pressed="false">Needs review</button><button data-f="correct" aria-pressed="false">Correct</button>
+        </div>
+      </div>
+      <p class="note" id="recNote" style="margin:10px 0"></p>
+      <div class="scrollbox"><table class="data-table" id="recTable"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAM -->
+<section id="team" class="alt">
+  <div class="wrap team">
+    <div>
+      <h2 class="sec">About the team</h2>
+      <div class="person"><div class="avatar">AP</div><div><b>Abithra P</b><span>Section B. Design, logic model and website.</span></div></div>
+      <p class="meta">Project: Programmable Logic Based AI Rule Classifier. Course: EC2201, Unit IV (Memory and Programmable Logic Devices). Level: Advanced.</p>
+      <p class="meta">Tools: HTML, CSS and JavaScript for the site; Python, NumPy and Matplotlib for the reference model.</p>
+    </div>
+    <div>
+      <h2 class="sec">Contact or suggest a rule</h2>
+      <form class="contact" id="contactForm" novalidate>
+        <label for="cName">Your name</label><input type="text" id="cName" autocomplete="name">
+        <div class="err" id="eName"></div>
+        <label for="cMail">Email</label><input type="email" id="cMail" autocomplete="email">
+        <div class="err" id="eMail"></div>
+        <label for="cTopic">Topic</label>
+        <select id="cTopic"><option>Question</option><option>Suggest a product term</option><option>Report a problem</option><option>Other</option></select>
+        <label for="cMsg">Message</label><textarea id="cMsg"></textarea>
+        <div class="err" id="eMsg"></div>
+        <button type="submit" class="btn" style="margin-top:16px">Send message</button>
+        <p class="status" id="formStatus" role="status"></p>
+      </form>
+      <details class="saved" id="savedBox" open>
+        <summary id="savedSum">Messages saved on this device (0)</summary>
+        <ul id="savedList"></ul>
+        <div class="btnrow" style="margin-top:6px"><button class="btn small" id="dlMsgs">Download as CSV</button><button class="btn small" id="delMsgs">Delete all</button></div>
+      </details>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap">PLA Rule Classifier · EC2201 · Everything runs in your browser; nothing is sent to a server.</div></footer>
+
+<script>
+(function(){
+'use strict';
+/* ---------- constants ---------- */
+var FEATS=[
+ {k:'A',n:'Contains link',d:'Body has a clickable URL'},
+ {k:'B',n:'Urgent wording',d:'"Act now", "expires today", "immediately"'},
+ {k:'C',n:'Unknown sender',d:'Sender is not in the contact list'},
+ {k:'D',n:'Has attachment',d:'A file is attached'},
+ {k:'E',n:'Asks for credentials',d:'Password, OTP or card details requested'},
+ {k:'F',n:'Promotional wording',d:'"Free", "offer", "winner", "discount"'}];
+var OUT=['Phishing','Spam','Safe'];
+var REVIEW='Needs review';
+var RS_V1=[['11--1-',0],['-111--',0],['1-1--1',1],['--1-01',1],['-00-00',2],['0-0-0-',2]];
+var RS_V2=RS_V1.concat([['--1-1-',0],['01--1-',0],['1-0--1',1],['-0--00',2]]);
+var SAMPLES=[
+ {id:'N01',t:'Verify your bank OTP within 5 minutes',w:'111010'},
+ {id:'N02',t:'URGENT: invoice attached, open immediately',w:'011100'},
+ {id:'N03',t:'Congratulations! You won a free gift card',w:'101001'},
+ {id:'N04',t:'Weekend sale: 50% off everything',w:'001001'},
+ {id:'N05',t:'Team meeting notes from Monday',w:'000000'},
+ {id:'N06',t:'Shared lab document link from your partner',w:'100000'},
+ {id:'N07',t:'Assignment deadline reminder from professor',w:'010000'},
+ {id:'N08',t:'Your account is locked, reset password now',w:'110010'},
+ {id:'N09',t:'Limited time offer, click now',w:'111001'},
+ {id:'N10',t:'Project report attached by teammate',w:'000100'},
+ {id:'E01',t:'Empty message (all features 0)',w:'000000'},
+ {id:'E02',t:'Every feature present (all features 1)',w:'111111'},
+ {id:'E03',t:'Unknown sender, nothing else suspicious',w:'001000'},
+ {id:'E04',t:'Conflict: phishing and spam rules both fire',w:'111011'},
+ {id:'E05',t:'Fault: input E stuck-at-0, credentials mail',w:'110010',f:{type:'in0',loc:4}},
+ {id:'E06',t:'Fault: product line P1 stuck-at-1, empty mail',w:'000000',f:{type:'pt1',loc:0}},
+ {id:'E07',t:'Fault: product line P6 stuck-at-0, empty mail',w:'000000',f:{type:'pt0',loc:5}}];
+var EXPECT={N01:'Phishing',N02:'Phishing',N03:'Spam',N04:'Spam',N05:'Safe',N06:'Safe',N07:'Safe',N08:'Phishing',N09:'Spam',N10:'Safe',E01:'Safe',E02:'Phishing',E03:REVIEW,E04:'Phishing',E05:REVIEW,E06:'Phishing',E07:'Safe'};
+var FAULT_TYPES=[['none','No fault'],['in0','Input stuck-at-0'],['in1','Input stuck-at-1'],['pt0','Product line stuck-at-0'],['pt1','Product line stuck-at-1']];
+
+/* ---------- state ---------- */
+function mkRules(set){return set.map(function(r){return {lits:r[0].split(''),or:[r[1]===0,r[1]===1,r[1]===2]}})}
+var state={
+ rules:mkRules(RS_V1),
+ fault:{type:'none',loc:0},
+ bits:[0,0,0,0,0,0], ctx:{kind:'custom'},
+ circ:[1,0,1,0,0,1],
+ hero:{bits:[1,1,1,0,1,0],idx:0,title:SAMPLES[0].t},
+ dataset:null, builtin:null, filter:'all', tab:'classify'
+};
+
+/* ---------- dataset (seed 2201) ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function buildDataset(){
+ var rnd=mulberry32(2201);
+ function bern(p){return rnd()<p?1:0}
+ function pick(ws){var s=0,i;for(i=0;i<ws.length;i++)s+=ws[i][0];var r=rnd()*s;for(i=0;i<ws.length;i++){if((r-=ws[i][0])<0)return ws[i][1]}return ws[ws.length-1][1]}
+ function mk(c){
+  if(c==='Phishing')return pick([
+   [30,function(){return [1,1,bern(.4),bern(.3),1,bern(.15)]}],
+   [18,function(){return [bern(.5),1,1,1,bern(.3),bern(.1)]}],
+   [26,function(){return [bern(.4),0,1,bern(.2),1,bern(.15)]}],
+   [26,function(){return [0,1,0,bern(.2),1,bern(.1)]}]])();
+  if(c==='Spam')return pick([
+   [40,function(){return [1,bern(.3),1,bern(.15),bern(.15),1]}],
+   [18,function(){return [bern(.3),bern(.2),1,bern(.1),0,1]}],
+   [24,function(){return [1,bern(.3),0,bern(.1),0,1]}],
+   [18,function(){return [0,bern(.5),0,bern(.1),0,1]}]])();
+  return pick([
+   [62,function(){return [bern(.3),0,0,bern(.3),0,0]}],
+   [12,function(){return [bern(.3),bern(.3),0,bern(.2),0,0]}],
+   [12,function(){return [bern(.2),0,1,bern(.2),0,0]}],
+   [14,function(){return [bern(.3),bern(.4),bern(.4),bern(.3),0,bern(.2)]}]])();
+ }
+ var cls=[],i;
+ for(i=0;i<37;i++)cls.push('Phishing');for(i=0;i<56;i++)cls.push('Spam');for(i=0;i<107;i++)cls.push('Safe');
+ for(i=cls.length-1;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=cls[i];cls[i]=cls[j];cls[j]=t}
+ return cls.map(function(c,i){return {id:'MSG-'+('00'+(i+1)).slice(-3),bits:mk(c),cls:c}});
+}
+state.builtin={name:'Built-in synthetic dataset (seed 2201)',records:buildDataset(),labelled:true};
+state.dataset=state.builtin;
+
+/* ---------- engine ---------- */
+function evaluate(bits,rules,fault){
+ rules=rules||state.rules;fault=fault||state.fault;
+ var seen=bits.slice();
+ if(fault.type==='in0')seen[fault.loc]=0;
+ if(fault.type==='in1')seen[fault.loc]=1;
+ var fired=[],out=[0,0,0],i,k;
+ for(i=0;i<rules.length;i++){
+  var m=true;
+  for(k=0;k<6;k++){var l=rules[i].lits[k];if((l==='1'&&seen[k]!==1)||(l==='0'&&seen[k]!==0)){m=false;break}}
+  if(fault.type==='pt0'&&fault.loc===i)m=false;
+  if(fault.type==='pt1'&&fault.loc===i)m=true;
+  fired.push(m);
+  if(m)for(k=0;k<3;k++)if(rules[i].or[k])out[k]=1;
+ }
+ var pred=out[0]?'Phishing':out[1]?'Spam':out[2]?'Safe':REVIEW;
+ return {seen:seen,fired:fired,out:out,pred:pred};
+}
+function termLabel(r){
+ var s=[];for(var k=0;k<6;k++){if(r.lits[k]==='1')s.push(FEATS[k].k);else if(r.lits[k]==='0')s.push(FEATS[k].k+"'")}
+ return s.length?s.join('\u00b7'):'(always)';
+}
+function word(bits){return bits.join('')}
+function bitsFromWord(w){return w.split('').map(Number)}
+function firedNames(ev){var a=[];ev.fired.forEach(function(f,i){if(f)a.push('P'+(i+1))});return a}
+function explain(ev){
+ var n=firedNames(ev);
+ if(!n.length)return 'No product term matched, so no output line went high. The email goes to a person instead of being guessed.';
+ var feeds=[];for(var k=0;k<3;k++)if(ev.out[k])feeds.push(OUT[k]);
+ var terms=n.length===1?n[0]+' fired':n.slice(0,-1).join(', ')+' and '+n[n.length-1]+' fired';
+ if(!feeds.length)return terms+', but it is not connected to any output. The email goes to a person.';
+ var s=terms+', feeding the '+feeds.join(' and ')+' output'+(feeds.length>1?'s':'')+'.';
+ if(feeds.length>1)s+=' The priority encoder picks '+ev.pred+'.';
+ return s;
+}
+function tagClass(p){return p===REVIEW?'t-Review':'t-'+p}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function $(s,r){return (r||document).querySelector(s)}
+function $$(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))}
+
+/* dataset run + metrics */
+function runData(recs,rules,fault){
+ return recs.map(function(r){
+  var ev=evaluate(r.bits,rules,fault);
+  var res=!r.cls?'No label':ev.pred===REVIEW?'Needs review':ev.pred===r.cls?'Correct':'Wrong';
+  return {rec:r,ev:ev,pred:ev.pred,res:res};
+ });
+}
+function metrics(rows){
+ var n=rows.length,lab=rows.filter(function(x){return x.rec.cls}).length;
+ var ok=0,cov=0,wrong=0,conf={},i;
+ OUT.forEach(function(c){conf[c]={Phishing:0,Spam:0,Safe:0,'Needs review':0}});
+ rows.forEach(function(x){
+  if(x.pred!==REVIEW)cov++;
+  if(x.rec.cls){
+   conf[x.rec.cls][x.pred]++;
+   if(x.pred===x.rec.cls)ok++;else if(x.pred!==REVIEW)wrong++;
+  }
+ });
+ return {n:n,lab:lab,acc:lab?ok/lab:null,cov:n?cov/n:0,covN:cov,review:n-cov,wrong:wrong,conf:conf};
+}
+var baseline=null;
+function baselineAcc(){
+ var rows=runData(state.dataset.records,mkRules(RS_V1),{type:'none',loc:0});
+ return metrics(rows).acc;
+}
+
+/* ---------- rendering: shared ---------- */
+function pct(x,d){return (x*100).toFixed(d==null?1:d)+'%'}
+function eqHTML(){
+ var h='';
+ OUT.forEach(function(name,k){
+  var idx=[],ex=[];
+  state.rules.forEach(function(r,i){if(r.or[k]){idx.push('P'+(i+1));ex.push(termLabel(r))}});
+  h+='<span class="tag t-'+name+'">'+name+'</span><div class="code"><div>'+(name==='Phishing'?'PHISH':name.toUpperCase())+' = '+(idx.length?idx.join(' + '):'0')+'</div><small>= '+(ex.length?esc(ex.join(' + ')):'0')+'</small></div>';
+ });
+ return h;
+}
+function faultMessage(){
+ var f=state.fault;
+ if(f.type==='none')return {t:'No fault. The array sees every input as it really is.',ok:true};
+ if(f.type==='in0'||f.type==='in1'){var F=FEATS[f.loc];return {t:'Input '+F.k+' ('+F.n+') is stuck at '+(f.type==='in0'?'0':'1')+'. The array never sees its real value.'}}
+ var nm='P'+(f.loc+1);
+ return {t:'Product line '+nm+' is stuck at '+(f.type==='pt0'?'0. It never fires.':'1. It fires on every email.')};
+}
+
+/* ---------- hero ---------- */
+function renderHero(){
+ var rows=state.rules.length;
+ $('#heroStats').innerHTML='<span><b>6</b>input bits</span><span><b>'+rows+'</b>product terms</span><span><b>3</b>output lines</span><span><b>'+state.builtin.records.length+'</b>test records</span>';
+ $('#heroTitle').textContent=state.hero.title;
+ var ev=evaluate(state.hero.bits,state.rules,{type:'none',loc:0});
+ var chips=$('#heroChips');
+ if(!chips.children.length){
+  FEATS.forEach(function(F,k){
+   var b=document.createElement('button');b.type='button';b.className='chip';b.dataset.k=k;
+   b.innerHTML='<i>'+F.k+'</i>'+F.n;
+   b.addEventListener('click',function(){state.hero.bits[k]=state.hero.bits[k]?0:1;state.hero.title='Custom combination of clues';renderHero()});
+   chips.appendChild(b);
+  });
+ }
+ $$('.chip',chips).forEach(function(b){b.setAttribute('aria-pressed',state.hero.bits[+b.dataset.k]?'true':'false')});
+ $('#heroTerms').innerHTML=state.rules.map(function(r,i){return '<div class="term'+(ev.fired[i]?' on':'')+'"><b>P'+(i+1)+'</b><span>'+esc(termLabel(r))+'</span></div>'}).join('');
+ var tag=$('#heroTag');tag.className='tag '+tagClass(ev.pred);tag.textContent=ev.pred;
+ $('#heroWhy').textContent=explain(ev);
+}
+$('#heroNext').addEventListener('click',function(e){
+ e.preventDefault();
+ var normals=SAMPLES.slice(0,10);
+ state.hero.idx=(state.hero.idx+1)%normals.length;
+ var s=normals[state.hero.idx];
+ state.hero.bits=bitsFromWord(s.w);state.hero.title=s.t;renderHero();
+});
+
+/* ---------- solution ---------- */
+function renderSolution(){
+ $('#bitList').innerHTML=FEATS.map(function(F){return '<li><span class="k">'+F.k+'</span><div><b>'+F.n+'</b><span>'+esc(F.d)+'</span></div></li>'}).join('');
+ $('#eqSolution').innerHTML=eqHTML();
+ var chips=$('#circChips');
+ if(!chips.children.length){
+  FEATS.forEach(function(F,k){
+   var b=document.createElement('button');b.type='button';b.className='chip';b.dataset.k=k;
+   b.innerHTML='<i>'+F.k+'</i>'+F.n;
+   b.addEventListener('click',function(){state.circ[k]=state.circ[k]?0:1;renderCircuit()});
+   chips.appendChild(b);
+  });
+ }
+ renderCircuit();
+}
+function renderCircuit(){
+ $$('#circChips .chip').forEach(function(b){b.setAttribute('aria-pressed',state.circ[+b.dataset.k]?'true':'false')});
+ var ev=evaluate(state.circ,state.rules,{type:'none',loc:0});
+ var n=state.rules.length;
+ var xs=[],i,k;for(i=0;i<12;i++)xs.push(110+i*36);
+ var ox=[640,712,784];
+ var rowY=function(r){return 176+r*42};
+ var top=150,bottom=rowY(n-1)+34,H=bottom+58,W=850;
+ var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="AND plane and OR plane circuit with current inputs">';
+ s+='<text class="plane" x="'+((xs[0]+xs[11])/2)+'" y="16" text-anchor="middle">AND plane</text>';
+ s+='<text class="plane" x="'+ox[1]+'" y="16" text-anchor="middle">OR plane</text>';
+ for(k=0;k<6;k++){
+  var cx=(xs[2*k]+xs[2*k+1])/2;
+  s+='<text class="big" x="'+cx+'" y="48" text-anchor="middle">'+FEATS[k].k+'</text>';
+  var one=state.circ[k]===1;
+  s+='<rect class="badge'+(one?' one':'')+'" x="'+(cx-11)+'" y="60" width="22" height="22" rx="4"/><text class="btxt'+(one?' one':'')+'" x="'+cx+'" y="76" text-anchor="middle">'+(one?1:0)+'</text>';
+  s+='<text x="'+xs[2*k]+'" y="120" text-anchor="middle">'+FEATS[k].k+'</text><text x="'+xs[2*k+1]+'" y="120" text-anchor="middle">'+FEATS[k].k+"'</text>";
+  var a1=state.circ[k]===1,a0=state.circ[k]===0;
+  s+='<line class="vl'+(a1?' on':'')+'" x1="'+xs[2*k]+'" y1="'+top+'" x2="'+xs[2*k]+'" y2="'+bottom+'"/>';
+  s+='<line class="vl'+(a0?' on':'')+'" x1="'+xs[2*k+1]+'" y1="'+top+'" x2="'+xs[2*k+1]+'" y2="'+bottom+'"/>';
+ }
+ ['Phishing','Spam','Safe'].forEach(function(nm,o){
+  s+='<text x="'+ox[o]+'" y="120" text-anchor="middle">'+nm+'</text>';
+  s+='<line class="ol'+(ev.out[o]?' on-'+o:'')+'" x1="'+ox[o]+'" y1="'+top+'" x2="'+ox[o]+'" y2="'+bottom+'"/>';
+  s+='<circle class="oc'+(ev.out[o]?' on-'+o:'')+'" cx="'+ox[o]+'" cy="'+(bottom+24)+'" r="11"/>';
+ });
+ state.rules.forEach(function(r,ri){
+  var y=rowY(ri),f=ev.fired[ri];
+  s+='<text class="plab'+(f?' on':'')+'" x="70" y="'+(y+5)+'" text-anchor="middle">P'+(ri+1)+'</text>';
+  s+='<line class="hl'+(f?' on':'')+'" x1="'+(xs[0]-16)+'" y1="'+y+'" x2="'+(ox[2]+16)+'" y2="'+y+'"/>';
+ });
+ state.rules.forEach(function(r,ri){
+  var y=rowY(ri),f=ev.fired[ri];
+  for(k=0;k<6;k++){
+   if(r.lits[k]==='1')s+='<circle class="dot'+(f?' on':'')+'" cx="'+xs[2*k]+'" cy="'+y+'" r="5"/>';
+   if(r.lits[k]==='0')s+='<circle class="dot'+(f?' on':'')+'" cx="'+xs[2*k+1]+'" cy="'+y+'" r="5"/>';
+  }
+  for(k=0;k<3;k++)if(r.or[k])s+='<circle class="dot'+(f?' on':'')+'" cx="'+ox[k]+'" cy="'+y+'" r="5"/>';
+ });
+ s+='<text x="'+((xs[0]+xs[11])/2)+'" y="'+(H-6)+'" text-anchor="middle">Result: '+ev.pred+'</text>';
+ s+='</svg>';
+ $('#circuit').innerHTML=s;
+}
+
+/* ---------- fault box ---------- */
+function renderFault(){
+ var t=$('#faultType');
+ if(!t.options.length){
+  FAULT_TYPES.forEach(function(f){var o=document.createElement('option');o.value=f[0];o.textContent=f[1];t.appendChild(o)});
+  t.addEventListener('change',function(){state.fault.type=t.value;state.fault.loc=0;refreshAll()});
+  $('#faultLoc').addEventListener('change',function(e){state.fault.loc=+e.target.value;refreshAll()});
+ }
+ t.value=state.fault.type;
+ var loc=$('#faultLoc'),ft=state.fault.type,h='';
+ if(ft==='none'){h='<option value="0">Not needed</option>';loc.disabled=true}
+ else{
+  loc.disabled=false;
+  if(ft==='in0'||ft==='in1')h=FEATS.map(function(F,i){return '<option value="'+i+'">'+F.k+': '+F.n+'</option>'}).join('');
+  else h=state.rules.map(function(r,i){return '<option value="'+i+'">P'+(i+1)+': '+esc(termLabel(r))+'</option>'}).join('');
+ }
+ loc.innerHTML=h;
+ if(state.fault.loc>=loc.options.length)state.fault.loc=0;
+ loc.value=String(state.fault.loc);
+ var m=faultMessage();var el=$('#faultMsg');el.textContent=m.t;el.className='msg'+(m.ok?' ok':'');
+}
+
+/* ---------- classify tab ---------- */
+function buildClassify(){
+ var sel=$('#sampleSel');
+ var h='<option value="custom">Custom combination</option><optgroup label="Normal cases">';
+ SAMPLES.forEach(function(s,i){if(i===10)h+='</optgroup><optgroup label="Edge and fault cases">';h+='<option value="'+s.id+'">'+s.id+': '+esc(s.t)+'</option>'});
+ sel.innerHTML=h+'</optgroup>';
+ sel.addEventListener('change',function(){
+  if(sel.value==='custom'){state.ctx={kind:'custom'};renderClassify();return}
+  var s=SAMPLES.filter(function(x){return x.id===sel.value})[0];
+  state.bits=bitsFromWord(s.w);state.ctx={kind:'sample',s:s};
+  if(s.f){state.fault={type:s.f.type,loc:s.f.loc};refreshAll();return}
+  renderClassify();
+ });
+ $('#clueList').innerHTML=FEATS.map(function(F,k){
+  return '<button type="button" class="clue" data-k="'+k+'" aria-pressed="false"><span class="k">'+F.k+'</span><span class="t"><b>'+F.n+'</b><span class="d">'+esc(F.d)+'</span></span><span class="v">0</span></button>';
+ }).join('');
+ $$('#clueList .clue').forEach(function(b){
+  b.addEventListener('click',function(){var k=+b.dataset.k;state.bits[k]=state.bits[k]?0:1;state.ctx={kind:'custom'};renderClassify()});
+ });
+ $('#randRec').addEventListener('click',function(){
+  var recs=state.dataset.records;var r=recs[Math.floor(Math.random()*recs.length)];
+  state.bits=r.bits.slice();state.ctx={kind:'record',r:r};renderClassify();
+ });
+}
+function renderClassify(){
+ $$('#clueList .clue').forEach(function(b){var k=+b.dataset.k;var on=state.bits[k]===1;b.setAttribute('aria-pressed',on?'true':'false');$('.v',b).textContent=on?'1':'0'});
+ var sel=$('#sampleSel');sel.value=state.ctx.kind==='sample'?state.ctx.s.id:'custom';
+ var ev=evaluate(state.bits);
+ var title=state.ctx.kind==='sample'?state.ctx.s.id+': '+state.ctx.s.t:state.ctx.kind==='record'?'Record '+state.ctx.r.id+' from the dataset':'Custom combination of clues';
+ var h='<p class="result-title">'+esc(title)+'</p><span class="badge-big '+tagClass(ev.pred)+'">'+ev.pred+'</span><p>'+esc(explain(ev))+'</p>';
+ if(state.ctx.kind==='record'&&state.ctx.r.cls){
+  var ok=ev.pred===state.ctx.r.cls;
+  h+='<div class="agree '+(ok?'yes':'no')+'">True label in the dataset: '+state.ctx.r.cls+'. The PLA '+(ok?'agrees.':ev.pred===REVIEW?'did not decide.':'disagrees.')+'</div>';
+ }
+ if(state.ctx.kind==='sample'&&EXPECT[state.ctx.s.id]){
+  var e=EXPECT[state.ctx.s.id],ok2=ev.pred===e;
+  h+='<div class="agree '+(ok2?'yes':'no')+'">Expected for rule set v1: '+e+'. '+(ok2?'Matches.':'Differs with the current rules or fault.')+'</div>';
+ }
+ h+='<dl class="kv"><dt>Input word (A to F)</dt><dd class="mono">'+word(state.bits)+'</dd>';
+ if(word(ev.seen)!==word(state.bits))h+='<dt>Word the array sees</dt><dd class="mono" style="color:var(--warn)">'+word(ev.seen)+'</dd>';
+ var fn=firedNames(ev);
+ h+='<dt>Product terms fired</dt><dd>'+(fn.length?fn.join(', '):'None')+'</dd>';
+ h+='<dt>Output lines</dt><dd>'+OUT.map(function(o,k){return '<span class="pill'+(ev.out[k]?' on':'')+'">'+o+' '+ev.out[k]+'</span>'}).join('')+'</dd></dl>';
+ $('#resultBox').innerHTML=h;
+}
+
+/* ---------- edit tab ---------- */
+var CYC={'1':'0','0':'-','-':'1'};
+function renderEdit(){
+ var focusKey=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.fk:null;
+ var h='<thead><tr><th rowspan="2" style="text-align:left;padding-left:10px">Term</th><th colspan="6" class="grp">AND plane</th><th class="grp" colspan="3" style="border-left:6px solid #fff">OR plane</th><th rowspan="2"></th></tr><tr>';
+ FEATS.forEach(function(F){h+='<th>'+F.k+'</th>'});
+ h+='<th class="or0" style="border-left:6px solid #fff">Phishing</th><th class="or1">Spam</th><th class="or2">Safe</th></tr></thead><tbody>';
+ state.rules.forEach(function(r,i){
+  h+='<tr><td class="name">P'+(i+1)+'<span>'+esc(termLabel(r))+'</span></td>';
+  for(var k=0;k<6;k++){
+   var l=r.lits[k];
+   h+='<td><button type="button" class="cell '+(l==='1'?'l1':l==='0'?'l0':'ldc')+'" data-fk="l'+i+'_'+k+'" data-r="'+i+'" data-k="'+k+'" aria-label="P'+(i+1)+' input '+FEATS[k].k+': '+(l==='-'?"don't care":l)+'">'+(l==='-'?'\u2013':l)+'</button></td>';
+  }
+  for(var o=0;o<3;o++){
+   h+='<td'+(o===0?' style="border-left:6px solid #fff"':'')+'><button type="button" class="cell o'+(r.or[o]?' on-'+o:'')+'" data-fk="o'+i+'_'+o+'" data-r="'+i+'" data-o="'+o+'" aria-pressed="'+(r.or[o]?'true':'false')+'" aria-label="P'+(i+1)+' feeds '+OUT[o]+'">'+(r.or[o]?'\u25cf':'\u25cb')+'</button></td>';
+  }
+  h+='<td><button type="button" class="rm" data-rm="'+i+'">Remove</button></td></tr>';
+ });
+ $('#planeTable').innerHTML=h+'</tbody>';
+ if(focusKey){var f=$('[data-fk="'+focusKey+'"]');if(f)f.focus()}
+ $('#eqEdit').innerHTML=eqHTML();
+ var m=metrics(runData(state.dataset.records,state.rules,state.fault));
+ $('#editStats').innerHTML='<div><b>'+(m.acc==null?'n/a':pct(m.acc))+'</b><span>accuracy</span></div><div><b>'+pct(m.cov)+'</b><span>coverage</span></div><div><b>'+m.review+'</b><span>need review</span></div>';
+}
+$('#planeTable').addEventListener('click',function(e){
+ var b=e.target.closest('button');if(!b)return;
+ if(b.dataset.rm!==undefined){state.rules.splice(+b.dataset.rm,1);if(state.fault.loc>=state.rules.length&&(state.fault.type==='pt0'||state.fault.type==='pt1'))state.fault.loc=0;refreshAll();return}
+ var r=+b.dataset.r;
+ if(b.dataset.k!==undefined){var k=+b.dataset.k;state.rules[r].lits[k]=CYC[state.rules[r].lits[k]]}
+ else if(b.dataset.o!==undefined){var o=+b.dataset.o;state.rules[r].or[o]=!state.rules[r].or[o]}
+ refreshAll();
+});
+$('#addTerm').addEventListener('click',function(){
+ if(state.rules.length>=12)return;
+ state.rules.push({lits:['-','-','-','-','-','-'],or:[false,false,false]});refreshAll();
+});
+$('#loadV1').addEventListener('click',function(){state.rules=mkRules(RS_V1);state.fault={type:'none',loc:0};refreshAll()});
+$('#loadV2').addEventListener('click',function(){state.rules=mkRules(RS_V2);state.fault={type:'none',loc:0};refreshAll()});
+
+/* ---------- truth table ---------- */
+function renderTruth(){
+ var h='<thead><tr><th>Input word</th><th>Terms fired</th><th>Output lines</th><th>Label</th></tr></thead><tbody>';
+ var cnt={Phishing:0,Spam:0,Safe:0,'Needs review':0};
+ for(var n=0;n<64;n++){
+  var bits=[];for(var k=5;k>=0;k--)bits.push((n>>k)&1);
+  var ev=evaluate(bits);cnt[ev.pred]++;
+  var fn=firedNames(ev);
+  h+='<tr><td class="mono">'+word(bits)+'</td><td>'+(fn.length?fn.join(', '):'\u2013')+'</td><td class="mono">'+ev.out.join('')+'</td><td><span class="tag '+tagClass(ev.pred)+'">'+ev.pred+'</span></td></tr>';
+ }
+ $('#truthTable').innerHTML=h+'</tbody>';
+ $('#truthSummary').textContent='Phishing '+cnt.Phishing+', Spam '+cnt.Spam+', Safe '+cnt.Safe+', Needs review '+cnt['Needs review']+'. Output lines are ordered Phishing, Spam, Safe.';
+}
+
+/* ---------- tests ---------- */
+function runTests(){
+ var pass=0;
+ var h='<thead><tr><th>ID</th><th>Case</th><th>Word</th><th>Expected</th><th>Got</th><th>Result</th></tr></thead><tbody>';
+ SAMPLES.forEach(function(s){
+  var f=s.f||{type:'none',loc:0};
+  var ev=evaluate(bitsFromWord(s.w),state.rules,f);
+  var ok=ev.pred===EXPECT[s.id];if(ok)pass++;
+  h+='<tr><td>'+s.id+'</td><td>'+esc(s.t)+'</td><td class="mono">'+s.w+'</td><td>'+EXPECT[s.id]+'</td><td>'+ev.pred+'</td><td class="'+(ok?'pass':'fail')+'">'+(ok?'Pass':'Fail')+'</td></tr>';
+ });
+ $('#testTable').innerHTML=h+'</tbody>';
+ $('#testSummary').textContent=pass+' of '+SAMPLES.length+' tests passed.';
+}
+$('#runTests').addEventListener('click',runTests);
+
+/* ---------- your data ---------- */
+var lastPred=null;
+function parseCSV(text){
+ var rows=[],row=[],cur='',q=false,i,c;
+ for(i=0;i<text.length;i++){
+  c=text[i];
+  if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+  else if(c==='"')q=true;
+  else if(c===','){row.push(cur);cur=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(function(x){return x.trim()!==''}))rows.push(row);row=[]}
+  else cur+=c;
+ }
+ row.push(cur);if(row.some(function(x){return x.trim()!==''}))rows.push(row);
+ return rows;
+}
+function csvCell(v){v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}
+function download(name,text){
+ var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500);
+}
+function setStatus(msg,bad){var s=$('#csvStatus');s.textContent=msg;s.className='status '+(bad?'bad':'good')}
+$('#csvFile').addEventListener('change',function(e){
+ var f=e.target.files[0];if(!f)return;
+ var rd=new FileReader();
+ rd.onload=function(){
+  var rows=parseCSV(String(rd.result));
+  if(rows.length<2){setStatus('The file has no data rows.',true);return}
+  var head=rows[0].map(function(x){return x.trim().toLowerCase()});
+  var col=function(n){return head.indexOf(n)};
+  var idx=['a','b','c','d','e','f'].map(col);
+  if(idx.some(function(x){return x<0})){setStatus('Missing columns. The header needs A, B, C, D, E and F.',true);return}
+  var idc=col('id'),lc=Math.max(col('label'),col('class'),col('true_class'));
+  var recs=[],bad=0;
+  rows.slice(1).forEach(function(r,i){
+   var bits=idx.map(function(j){return Number(String(r[j]).trim())});
+   if(bits.some(function(b){return b!==0&&b!==1})){bad++;return}
+   var cls=null;
+   if(lc>=0){var v=String(r[lc]||'').trim().toLowerCase();cls=v==='phishing'?'Phishing':v==='spam'?'Spam':v==='safe'?'Safe':null}
+   recs.push({id:idc>=0&&r[idc]?r[idc].trim():'ROW-'+('00'+(i+1)).slice(-3),bits:bits,cls:cls});
+  });
+  if(!recs.length){setStatus('No valid rows. A to F must be 0 or 1.',true);return}
+  var labelled=recs.every(function(r){return r.cls});
+  state.uploaded={name:'Uploaded file: '+f.name,records:recs,labelled:labelled};
+  if(labelled)state.dataset=state.uploaded;
+  setStatus('Loaded '+recs.length+' rows'+(bad?' ('+bad+' skipped)':'')+(labelled?'. The Results dashboard now uses your file.':'. No complete label column, so accuracy is not computed.'),false);
+  refreshAll();
+ };
+ rd.readAsText(f);e.target.value='';
+});
+$('#resetData').addEventListener('click',function(){state.dataset=state.builtin;setStatus('Using the built-in dataset again.',false);refreshAll()});
+$('#sampleCsv').addEventListener('click',function(){
+ var t='id,A,B,C,D,E,F,label\n'+state.builtin.records.slice(0,12).map(function(r){return [r.id].concat(r.bits).concat(r.cls).join(',')}).join('\n');
+ download('sample_emails.csv',t);
+});
+$('#dlPred').addEventListener('click',function(){
+ if(!lastPred)return;
+ var t='id,A,B,C,D,E,F,label,terms_fired,predicted\n'+lastPred.map(function(x){return [x.rec.id].concat(x.rec.bits).concat([x.rec.cls||'',firedNames(x.ev).join(' '),x.pred]).map(csvCell).join(',')}).join('\n');
+ download('predictions.csv',t);
+});
+function renderData(){
+ var src=state.uploaded;
+ if(!src){$('#csvBox').hidden=true;$('#dlPred').hidden=true;return}
+ var rows=runData(src.records,state.rules,state.fault);lastPred=rows;
+ var h='<thead><tr><th>ID</th><th>A B C D E F</th><th>Terms fired</th><th>Predicted</th><th>True label</th></tr></thead><tbody>';
+ rows.slice(0,150).forEach(function(x){h+='<tr><td>'+esc(x.rec.id)+'</td><td class="mono">'+x.rec.bits.join(' ')+'</td><td>'+(firedNames(x.ev).join(' ')||'\u2013')+'</td><td><span class="tag '+tagClass(x.pred)+'">'+x.pred+'</span></td><td>'+(x.rec.cls||'\u2013')+'</td></tr>'});
+ $('#csvTable').innerHTML=h+'</tbody>';$('#csvBox').hidden=false;$('#dlPred').hidden=false;
+}
+
+/* ---------- results ---------- */
+function renderResults(){
+ var ds=state.dataset;
+ var rows=runData(ds.records,state.rules,state.fault);
+ var m=metrics(rows);
+ $('#resLede').textContent='Showing '+m.n+' records from: '+ds.name+'. The numbers follow the rules and fault you set in the demo.';
+ var base=baselineAcc(),delta=(m.acc!=null&&base!=null)?(m.acc-base)*100:null;
+ var dtxt=delta==null?'':Math.abs(delta)<0.05?'Same as rule set v1':(delta>0?'+':'\u2212')+Math.abs(delta).toFixed(1)+' points vs rule set v1';
+ $('#kpis').innerHTML=
+  '<div class="kpi"><small>Accuracy</small><b>'+(m.acc==null?'n/a':pct(m.acc))+'</b><span class="'+(delta==null?'':delta<-0.05?'neg':delta>0.05?'pos':'')+'">'+dtxt+'</span></div>'+
+  '<div class="kpi"><small>Rule coverage</small><b>'+pct(m.cov)+'</b><span>'+m.covN+' of '+m.n+' records matched a rule</span></div>'+
+  '<div class="kpi"><small>Needs review</small><b>'+m.review+'</b><span>No product term fired</span></div>'+
+  '<div class="kpi"><small>Misclassified</small><b>'+m.wrong+'</b><span>A rule fired but chose the wrong class</span></div>';
+ // confusion
+ var cols=['Phishing','Spam','Safe','Needs review'];
+ var h='<thead><tr><th>True \\ Predicted</th>'+cols.map(function(c){return '<th style="text-align:center">'+c+'</th>'}).join('')+'<th style="text-align:center">Total</th></tr></thead><tbody>';
+ OUT.forEach(function(t){
+  var tot=cols.reduce(function(a,c){return a+m.conf[t][c]},0);
+  h+='<tr><td>'+t+'</td>'+cols.map(function(c){
+   var v=m.conf[t][c],a=tot?v/tot:0,bg;
+   if(c===t)bg='rgba(25,168,102,'+(.12+a*.55).toFixed(2)+')';
+   else if(c==='Needs review')bg='rgba(90,100,120,'+(a*.45).toFixed(2)+')';
+   else bg='rgba(200,60,50,'+(a*.6).toFixed(2)+')';
+   return '<td style="background:'+bg+'">'+v+'</td>';
+  }).join('')+'<td>'+tot+'</td></tr>';
+ });
+ $('#confTable').innerHTML=h+'</tbody>';
+ // per class
+ h='<thead><tr><th>Class</th><th>Records</th><th>Precision</th><th>Recall</th><th>F1</th></tr></thead><tbody>';
+ OUT.forEach(function(t){
+  var tp=m.conf[t][t],tot=cols.reduce(function(a,c){return a+m.conf[t][c]},0);
+  var predN=OUT.reduce(function(a,x){return a+m.conf[x][t]},0);
+  var p=predN?tp/predN:null,r=tot?tp/tot:null,f=(p!=null&&r!=null&&p+r>0)?2*p*r/(p+r):null;
+  h+='<tr><td><span class="tag t-'+t+'">'+t+'</span></td><td>'+tot+'</td><td>'+(p==null?'\u2013':pct(p))+'</td><td>'+(r==null?'\u2013':pct(r))+'</td><td>'+(f==null?'\u2013':pct(f))+'</td></tr>';
+ });
+ $('#classTable').innerHTML=h+'</tbody>';
+ // coverage
+ var colors=['#c0392b','#c98314','#19a866'];
+ $('#coverage').innerHTML=state.rules.map(function(r,i){
+  var c=rows.filter(function(x){return x.ev.fired[i]}).length;
+  var o=r.or.indexOf(true);
+  return '<div class="barrow"><div class="lab"><b>P'+(i+1)+'</b><span>'+esc(termLabel(r))+'</span></div><div class="bar"><i style="width:'+(m.n?c/m.n*100:0)+'%;background:'+(o>=0?colors[o]:'#8891a4')+'"></i></div><div>'+c+' records ('+pct(m.n?c/m.n:0)+')'+(c===0?' <span class="never">never fires</span>':'')+'</div></div>';
+ }).join('');
+ renderRecords(rows);
+}
+function renderRecords(rows){
+ var f=state.filter;
+ var list=rows.filter(function(x){return f==='all'||(f==='wrong'&&x.res==='Wrong')||(f==='review'&&x.res==='Needs review')||(f==='correct'&&x.res==='Correct')});
+ $('#recNote').textContent=list.length+' records match this filter; showing the first '+Math.min(list.length,150)+'.';
+ var h='<thead><tr><th>ID</th><th>A B C D E F</th><th>Terms fired</th><th>True class</th><th>Predicted</th><th>Result</th></tr></thead><tbody>';
+ list.slice(0,150).forEach(function(x){
+  h+='<tr class="'+(x.res==='Wrong'?'bad':x.res==='Needs review'?'rev':'')+'"><td>'+esc(x.rec.id)+'</td><td class="mono">'+x.rec.bits.join(' ')+'</td><td>'+(firedNames(x.ev).join(' ')||'\u2013')+'</td><td>'+(x.rec.cls?'<span class="tag t-'+x.rec.cls+'">'+x.rec.cls+'</span>':'\u2013')+'</td><td><span class="tag '+tagClass(x.pred)+'">'+x.pred+'</span></td><td>'+x.res+'</td></tr>';
+ });
+ $('#recTable').innerHTML=h+'</tbody>';
+}
+$('#filterSeg').addEventListener('click',function(e){
+ var b=e.target.closest('button');if(!b)return;
+ state.filter=b.dataset.f;
+ $$('#filterSeg button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});
+ renderResults();
+});
+
+/* ---------- tabs ---------- */
+function setTab(t){
+ state.tab=t;
+ $$('#tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.tab===t?'true':'false')});
+ ['classify','edit','truth','tests','data'].forEach(function(n){$('#p-'+n).hidden=(n!==t)});
+ if(t==='truth')renderTruth();
+ if(t==='tests')runTests();
+ if(t==='edit')renderEdit();
+ if(t==='data')renderData();
+}
+$('#tabs').addEventListener('click',function(e){var b=e.target.closest('button');if(b)setTab(b.dataset.tab)});
+$$('.fcard a[data-tab]').forEach(function(a){
+ a.addEventListener('click',function(){
+  setTab(a.dataset.tab);
+  if(a.dataset.fault&&state.fault.type==='none'){state.fault={type:'in0',loc:3};refreshAll()}
+ });
+});
+
+/* ---------- refresh ---------- */
+function refreshAll(){
+ renderFault();renderHero();renderSolution();renderClassify();renderResults();
+ if(state.tab==='edit')renderEdit();
+ if(state.tab==='truth')renderTruth();
+ if(state.tab==='tests')runTests();
+ if(state.tab==='data')renderData();
+ else if(state.uploaded)lastPred=runData(state.uploaded.records,state.rules,state.fault);
+}
+
+/* ---------- contact form ---------- */
+var KEY='pla_messages_v1';
+function loadMsgs(){try{return JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){return []}}
+function saveMsgs(a){try{localStorage.setItem(KEY,JSON.stringify(a));return true}catch(e){return false}}
+function renderMsgs(){
+ var a=loadMsgs();
+ $('#savedSum').textContent='Messages saved on this device ('+a.length+')';
+ $('#savedList').innerHTML=a.length?a.map(function(m){return '<li><b>'+esc(m.topic)+'</b> from '+esc(m.name)+' ('+esc(m.email)+')<br>'+esc(m.message)+'</li>'}).join(''):'<li style="border:0;color:var(--muted)">Nothing saved yet.</li>';
+}
+function fieldErr(id,eid,msg){
+ var el=$('#'+id),er=$('#'+eid);
+ el.classList.toggle('invalid',!!msg);er.textContent=msg||'';
+ return !msg;
+}
+$('#contactForm').addEventListener('submit',function(e){
+ e.preventDefault();
+ var name=$('#cName').value.trim(),mail=$('#cMail').value.trim(),msg=$('#cMsg').value.trim();
+ var ok=true;
+ ok=fieldErr('cName','eName',name.length<2?'Enter your name.':'')&&ok;
+ ok=fieldErr('cMail','eMail',/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)?'':'Enter a valid email address, like name@example.com.')&&ok;
+ ok=fieldErr('cMsg','eMsg',msg.length<10?'Write at least 10 characters so we can understand your message.':'')&&ok;
+ var st=$('#formStatus');
+ if(!ok){st.textContent='Fix the highlighted fields and send again.';st.className='status bad';return}
+ var a=loadMsgs();a.push({name:name,email:mail,topic:$('#cTopic').value,message:msg,time:new Date().toISOString()});
+ if(saveMsgs(a)){st.textContent='Saved on this device. Thank you!';st.className='status good';$('#cMsg').value='';renderMsgs()}
+ else{st.textContent='This browser blocked saving. Copy your message instead.';st.className='status bad'}
+});
+$('#dlMsgs').addEventListener('click',function(){
+ var a=loadMsgs();
+ download('messages.csv','time,name,email,topic,message\n'+a.map(function(m){return [m.time,m.name,m.email,m.topic,m.message].map(csvCell).join(',')}).join('\n'));
+});
+$('#delMsgs').addEventListener('click',function(){saveMsgs([]);renderMsgs()});
+
+/* ---------- scroll spy ---------- */
+var ids=['problem','solution','features','how','demo','results','team'];
+function spy(){
+ var y=window.scrollY+120,cur=null;
+ ids.forEach(function(id){var el=document.getElementById(id);if(el&&el.offsetTop<=y)cur=id});
+ $$('nav.main a').forEach(function(a){a.classList.toggle('active',a.getAttribute('href')==='#'+cur)});
+}
+window.addEventListener('scroll',spy,{passive:true});
+
+/* ---------- init ---------- */
+buildClassify();
+renderMsgs();
+refreshAll();
+spy();
+})();
+</script>
+</body>
+</html>
